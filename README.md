@@ -22,7 +22,6 @@ Passed 100% success criteria across all assignments.
     - achieve CD lower than **40** from DDIM sampling with 50 inference timesteps out of 1000 diffusion timesteps.
 - 50 points: Achieve FID less than **20**.
 | Evaluation Criterion | Task1 DDPM CD | Task1 DDIM CD | Task1 DDIM sampling steps | Task2 FID |
-|---|---|---|---|---|
-| **Success Condition \(100%\)** | 20.00 | 40.00 | 50 | 20.00 |
-| **Final Performance**  | 10.73 | 19.19  | 50 | 4.74 |
+| **Success Condition \(100%\)** | 20.00 | 40 | 50 | 20.00 |
+| **Final Performance** | 10.73 | 19.19 | 50 | 4.74 |
 
