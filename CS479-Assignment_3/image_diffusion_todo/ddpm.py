@@ -69,6 +69,7 @@ class DiffusionModule(nn.Module):
         # For image diffusion model.
         return getattr(self.network, "image_resolution", None)
 
+
     def q_sample(self, x0, t, noise=None):
         """
         sample x_t from q(x_t | x_0) of DDPM.
@@ -80,16 +81,16 @@ class DiffusionModule(nn.Module):
         Output:
             xt (`torch.Tensor`): noisy samples
         """
+        xt = x0
         if noise is None:
             noise = torch.randn_like(x0)
+
 
         ######## TODO ########
         # DO NOT change the code outside this part.
         # Compute xt.
         alphas_prod_t = extract(self.var_scheduler.alphas_cumprod, t, x0)
-        sqrt_alphas_bar = alphas_prod_t.sqrt()
-        sqrt_one_minus_alphas_bar = (1 - alphas_prod_t).sqrt()
-        xt = sqrt_alphas_bar * x0 + sqrt_one_minus_alphas_bar * noise
+        xt = x0
 
         #######################
 
@@ -110,19 +111,14 @@ class DiffusionModule(nn.Module):
         ######## TODO ########
         # DO NOT change the code outside this part.
         # compute x_t_prev.
-        
         if isinstance(t, int):
             t = torch.tensor([t]).to(self.device)
         eps_factor = (1 - extract(self.var_scheduler.alphas, t, xt)) / (
             1 - extract(self.var_scheduler.alphas_cumprod, t, xt)
         ).sqrt()
-        coef = 1 / extract(self.var_scheduler.alphas, t, xt).sqrt()
-        noise_coef = extract(self.var_scheduler.betas, t, xt).sqrt()
-        
-        noise = torch.randn_like(xt) if t > 0 else 0.
         eps_theta = self.network(xt, t)
 
-        x_t_prev = coef * (xt - eps_factor * eps_theta) + noise_coef * noise
+        x_t_prev = xt
 
         #######################
         return x_t_prev
@@ -140,19 +136,8 @@ class DiffusionModule(nn.Module):
         ######## TODO ########
         # DO NOT change the code outside this part.
         # sample x0 based on Algorithm 2 of DDPM paper.
-        self.network.eval()
-        
-        xT = torch.randn(shape).to(self.device)
-        
-        time_steps = reversed(range(self.var_scheduler.num_train_timesteps))
-        
-        xt = xT
-        for t in time_steps:
-            xt = self.p_sample(xt, t)
+        x0_pred = torch.zeros(shape).to(self.device)
 
-        x0_pred = xt
-        
-        self.network.train()
         ######################
         return x0_pred
 
@@ -170,7 +155,6 @@ class DiffusionModule(nn.Module):
            x_t_prev (`torch.Tensor`): one step denoised sample. (= $x_{\tau_{i-1}}$)
         """
         ######## TODO ########
-        # NOTE: This code is used for assignment 2. You don't need to implement this part for assignment 1.
         # DO NOT change the code outside this part.
         # compute x_t_prev based on ddim reverse process.
         alpha_prod_t = extract(self.var_scheduler.alphas_cumprod, t, xt)
@@ -178,24 +162,9 @@ class DiffusionModule(nn.Module):
             alpha_prod_t_prev = extract(self.var_scheduler.alphas_cumprod, t_prev, xt)
         else:
             alpha_prod_t_prev = torch.ones_like(alpha_prod_t)
-        
-        if t > 1:
-            noise = torch.randn_like(xt)
-        else:
-            noise = torch.zeros_like(xt)
-        
-        pred_eps = self.network(xt, t)
-        pred_x0 = (xt - (1 - extract(self.var_scheduler.alphas_cumprod, t, xt)).sqrt() * pred_eps) / \
-            extract(self.var_scheduler.alphas_cumprod, t, xt).sqrt()
-            
 
-        sigma = eta * ((1 - alpha_prod_t / alpha_prod_t_prev) * (1 - alpha_prod_t_prev) / (1 - alpha_prod_t)).sqrt()
-        c = (1 - alpha_prod_t_prev - sigma ** 2).sqrt()
-        
-        x_t_prev = pred_x0 * alpha_prod_t_prev.sqrt() + \
-                c * pred_eps + \
-            sigma * noise
-            
+        x_t_prev = xt
+
         ######################
         return x_t_prev
 
@@ -212,11 +181,8 @@ class DiffusionModule(nn.Module):
             x0_pred (`torch.Tensor`): The final denoised output through the DDPM reverse process.
         """
         ######## TODO ########
-        # NOTE: This code is used for assignment 2. You don't need to implement this part for assignment 1.
         # DO NOT change the code outside this part.
         # sample x0 based on Algorithm 2 of DDPM paper.
-        self.network.eval()
-        
         step_ratio = self.var_scheduler.num_train_timesteps // num_inference_timesteps
         timesteps = (
             (np.arange(0, num_inference_timesteps) * step_ratio)
@@ -227,15 +193,12 @@ class DiffusionModule(nn.Module):
         timesteps = torch.from_numpy(timesteps)
         prev_timesteps = timesteps - step_ratio
 
-        xt = torch.randn(shape).to(self.device)
+        xt = torch.zeros(shape).to(self.device)
         for t, t_prev in zip(timesteps, prev_timesteps):
-            t = t.to(self.device)
-            t_prev = t_prev.to(self.device)
-            xt = self.ddim_p_sample(xt, t, t_prev, eta=eta)
+            pass
 
         x0_pred = xt
 
-        self.network.train()
         ######################
 
         return x0_pred
@@ -258,13 +221,8 @@ class DiffusionModule(nn.Module):
             .to(x0.device)
             .long()
         )
-        noise = torch.randn_like(x0)
-        xt = self.q_sample(x0, t, noise)
-        pred_noise = self.network(xt, t)
-        
-        # MSE Loss
-        # to predict noise itself
-        loss = (noise - pred_noise).square().mean()
+
+        loss = x0.mean()
 
         ######################
         return loss

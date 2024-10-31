@@ -5,7 +5,7 @@ matplotlib==3.6.0
 torch-ema==0.3
 tqdm==4.64.1
 jupyterlab==4.0.2
-jaxtyping==0.2.20
 pytorch_lightning
 dotmap
-numpy==1.26.0
+ipywidgets
+scipy==1.7.3

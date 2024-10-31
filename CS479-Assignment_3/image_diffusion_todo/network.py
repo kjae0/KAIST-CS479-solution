@@ -3,27 +3,18 @@ from typing import List, Optional
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from module import DownSample, ResBlock, Swish, TimeEmbedding, UpSample
 from torch.nn import init
 
 
 class UNet(nn.Module):
-    def __init__(self, T=1000, image_resolution=64, ch=128, ch_mult=[1,2,2,2], attn=[1], num_res_blocks=4, dropout=0.1, use_cfg=False, cfg_dropout=0.1, num_classes=None):
+    def __init__(self, T=1000, image_resolution=64, ch=128, ch_mult=[1,2,2,2], attn=[1], num_res_blocks=4, dropout=0.1):
         super().__init__()
         self.image_resolution = image_resolution
         assert all([i < len(ch_mult) for i in attn]), 'attn index out of bound'
         tdim = ch * 4
         # self.time_embedding = TimeEmbedding(T, ch, tdim)
         self.time_embedding = TimeEmbedding(tdim)
-
-        # classifier-free guidance
-        self.use_cfg = use_cfg
-        self.cfg_dropout = cfg_dropout
-        if use_cfg:
-            assert num_classes is not None
-            cdim = tdim
-            self.class_embedding = nn.Embedding(num_classes+1, cdim)
 
         self.head = nn.Conv2d(3, ch, kernel_size=3, stride=1, padding=1)
         self.downblocks = nn.ModuleList()
@@ -74,26 +65,6 @@ class UNet(nn.Module):
     def forward(self, x, timestep, class_label=None):
         # Timestep embedding
         temb = self.time_embedding(timestep)
-
-        if self.use_cfg and class_label is not None:
-            if self.training:
-                assert not torch.any(class_label == 0) # 0 for null.
-                
-                ######## TODO ########
-                # DO NOT change the code outside this part.
-                # Assignment 2. Implement random null conditioning in CFG training.
-                class_mask = torch.randn(class_label.shape) < self.cfg_dropout
-                class_label[class_mask] = 0
-                #######################
-            
-            ######## TODO ########
-            # DO NOT change the code outside this part.
-            # Assignment 2. Implement class conditioning
-            
-            # sumation instead of concatenation
-            temb = temb + self.class_embedding(class_label.to(temb.device))
-            # temb += self.class_embedding(class_label.to(temb.device))
-            #######################
 
         # Downsampling
         h = self.head(x)

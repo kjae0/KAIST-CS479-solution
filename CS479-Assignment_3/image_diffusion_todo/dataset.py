@@ -1,6 +1,6 @@
+from multiprocessing import Pool
 import os
 from itertools import chain
-from multiprocessing.pool import Pool
 from pathlib import Path
 
 import torch
@@ -94,10 +94,9 @@ class AFHQDataModule(object):
         root: str = "data",
         batch_size: int = 32,
         num_workers: int = 4,
-        max_num_images_per_cat: int = 1000,
+        max_num_images_per_cat: int = -1,
         image_resolution: int = 64,
         label_offset=1,
-        transform=None
     ):
         self.root = root
         self.batch_size = batch_size
@@ -106,7 +105,6 @@ class AFHQDataModule(object):
         self.max_num_images_per_cat = max_num_images_per_cat
         self.image_resolution = image_resolution
         self.label_offset = label_offset
-        self.transform = transform
 
         if not os.path.exists(self.afhq_root):
             print(f"{self.afhq_root} is empty. Downloading AFHQ dataset...")
@@ -115,14 +113,13 @@ class AFHQDataModule(object):
         self._set_dataset()
 
     def _set_dataset(self):
-        if self.transform is None:
-            self.transform = transforms.Compose(
-                [
-                    transforms.Resize((self.image_resolution, self.image_resolution)),
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                ]
-            )
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((self.image_resolution, self.image_resolution)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ]
+        )
         self.train_ds = AFHQDataset(
             self.afhq_root,
             "train",
@@ -148,6 +145,7 @@ class AFHQDataModule(object):
         os.system(f"unzip {ZIP_FILE} -d {self.root}")
         os.system(f"rm {ZIP_FILE}")
 
+
     def train_dataloader(self):
         return torch.utils.data.DataLoader(
             self.train_ds,
@@ -165,7 +163,6 @@ class AFHQDataModule(object):
             shuffle=False,
             drop_last=False,
         )
-    
 
 if __name__ == "__main__":
     data_module = AFHQDataModule("data", 32, 4, -1, 64, 1)

@@ -84,7 +84,7 @@ class SimpleNet(nn.Module):
         ######## TODO ########
         # DO NOT change the code outside this part.
         self.body = nn.ModuleList()
-        self.act_fn = nn.SiLU()
+        self.act_fn = nn.ReLU()
         
         dim_hids = [dim_in] + dim_hids
         for i in range(len(dim_hids)-1):
@@ -96,7 +96,7 @@ class SimpleNet(nn.Module):
             self.body.append(layer)
         
         self.final_fc = TimeLinear(dim_hids[-1], dim_out, num_timesteps)
-        
+
         ######################
         
     def forward(self, x: torch.Tensor, t: torch.Tensor):
@@ -113,16 +113,8 @@ class SimpleNet(nn.Module):
         for layer, act_fn, norm in self.body:
             x = layer(x, t)
             x = act_fn(x)
-            x = norm(x)
+            # x = norm(x)
         
         x = self.final_fc(x, t)
         ######################
         return x
-
-if __name__ == "__main__":
-    device = 'cuda:0'
-    x = torch.zeros(20, 2).to(device)
-    t = torch.zeros(20).to(device)
-    model = SimpleNet(2, 2, [16, 16], 100).to(device)
-    output = model(x, t)
-    

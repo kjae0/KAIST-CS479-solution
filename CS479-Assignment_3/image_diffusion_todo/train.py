@@ -8,10 +8,9 @@ import matplotlib.pyplot as plt
 import torch
 from dataset import AFHQDataModule, get_data_iterator, tensor_to_pil_image
 from dotmap import DotMap
-from model import DiffusionModule
+from ddpm import DiffusionModule, BaseScheduler
 from network import UNet
 from pytorch_lightning import seed_everything
-from scheduler import DDPMScheduler
 from torchvision.transforms.functional import to_pil_image
 from tqdm import tqdm
 
@@ -30,10 +29,7 @@ def main(args):
     config.device = f"cuda:{args.gpu}"
 
     now = get_current_time()
-    if args.use_cfg:
-        save_dir = Path(f"results/cfg_diffusion-{args.sample_method}-{now}")
-    else:
-        save_dir = Path(f"results/diffusion-{args.sample_method}-{now}")
+    save_dir = Path(f"results/diffusion-{now}")
     save_dir.mkdir(exist_ok=True, parents=True)
     print(f"save_dir: {save_dir}")
 
@@ -43,7 +39,7 @@ def main(args):
         json.dump(config, f, indent=2)
     """######"""
 
-    image_resolution = 64
+    image_resolution = config.image_resolution
     ds_module = AFHQDataModule(
         "./data",
         batch_size=config.batch_size,
@@ -55,13 +51,14 @@ def main(args):
     train_dl = ds_module.train_dataloader()
     train_it = get_data_iterator(train_dl)
 
-    # Set up the scheduler
-    var_scheduler = DDPMScheduler(
+    var_scheduler = BaseScheduler(
         config.num_diffusion_train_timesteps,
         beta_1=config.beta_1,
         beta_T=config.beta_T,
         mode="linear",
     )
+    # if isinstance(var_scheduler, DDIMScheduler):
+    #     var_scheduler.set_timesteps(20)  # 20 steps are enough in the case of DDIM.
 
     network = UNet(
         T=config.num_diffusion_train_timesteps,
@@ -71,9 +68,6 @@ def main(args):
         attn=[1],
         num_res_blocks=4,
         dropout=0.1,
-        use_cfg=args.use_cfg,
-        cfg_dropout=args.cfg_dropout,
-        num_classes=getattr(ds_module, "num_classes", None),
     )
 
     ddpm = DiffusionModule(network, var_scheduler)
@@ -93,7 +87,9 @@ def main(args):
                 plt.plot(losses)
                 plt.savefig(f"{save_dir}/loss.png")
                 plt.close()
-                samples = ddpm.sample(4, return_traj=False)
+
+                # samples = ddpm.p_sample_loop((4,3,64,64))
+                samples = ddpm.ddim_p_sample_loop((4,3,64,64))
                 pil_images = tensor_to_pil_image(samples)
                 for i, img in enumerate(pil_images):
                     img.save(save_dir / f"step={step}-{i}.png")
@@ -101,12 +97,12 @@ def main(args):
                 ddpm.save(f"{save_dir}/last.ckpt")
                 ddpm.train()
 
+            if step % 1000 == 0:
+                ddpm.save(f"{save_dir}/{step}.ckpt")
+
             img, label = next(train_it)
             img, label = img.to(config.device), label.to(config.device)
-            if args.use_cfg:  # Conditional, CFG training
-                loss = ddpm.get_loss(img, class_label=label)
-            else:  # Unconditional training
-                loss = ddpm.get_loss(img)
+            loss = ddpm.compute_loss(img)
             pbar.set_description(f"Loss: {loss.item():.4f}")
 
             optimizer.zero_grad()
@@ -118,11 +114,12 @@ def main(args):
             step += 1
             pbar.update(1)
 
+    print(f"last.ckpt is saved at {save_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--gpu", type=int, default=0)
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--batch_size", type=int, default=12)
     parser.add_argument(
         "--train_num_steps",
         type=int,
@@ -130,11 +127,11 @@ if __name__ == "__main__":
         help="the number of model training steps.",
     )
     parser.add_argument("--warmup_steps", type=int, default=200)
-    parser.add_argument("--log_interval", type=int, default=200)
+    parser.add_argument("--log_interval", type=int, default=500)
     parser.add_argument(
         "--max_num_images_per_cat",
         type=int,
-        default=3000,
+        default=1000,
         help="max number of images per category for AFHQ dataset",
     )
     parser.add_argument(
@@ -147,8 +144,6 @@ if __name__ == "__main__":
     parser.add_argument("--beta_T", type=float, default=0.02)
     parser.add_argument("--seed", type=int, default=63)
     parser.add_argument("--image_resolution", type=int, default=64)
-    parser.add_argument("--sample_method", type=str, default="ddpm")
-    parser.add_argument("--use_cfg", action="store_true")
-    parser.add_argument("--cfg_dropout", type=float, default=0.1)
+
     args = parser.parse_args()
     main(args)
