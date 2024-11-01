@@ -1,5 +1,5 @@
 # KAIST-CS479-solution
-My solutions of assignments (KAIST CS 479 course offered by prof. Minhyuk Sung)
+My solutions of assignments (KAIST CS479 course offered by prof. Minhyuk Sung) <br>
 Passed 100% success criteria across all assignments.
 
 ## Assignment1
